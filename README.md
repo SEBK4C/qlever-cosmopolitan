@@ -1,3 +1,51 @@
+# QLever, Actually Portable ⚡
+
+> **This is the [APE](https://justine.lol/ape.html) distribution of
+> [QLever](https://github.com/ad-freiburg/qlever)** — a friendly hard fork
+> that ships QLever as **Actually Portable Executables**: a single
+> `qlever-server` / `qlever-index` binary that runs **unmodified** on
+> Linux, macOS, Windows, FreeBSD, OpenBSD and NetBSD, on both **x86_64 and
+> aarch64**. No installer, no Docker, no runtime dependencies — even the
+> ICU Unicode data is embedded in the binary.
+
+## What is an APE?
+
+An Actually Portable Executable (built with
+[Cosmopolitan Libc](https://github.com/jart/cosmopolitan)) is one file
+that is simultaneously a valid ELF binary, a Mach-O binary, a Windows PE
+and a POSIX shell script, with fat x86_64+aarch64 machine code inside.
+You download one file and run it — on practically anything.
+
+## Hosting your own SPARQL endpoint in five commands
+
+```sh
+curl -LO https://github.com/SEBK4C/qlever-cosmopolitan/releases/latest/download/qlever-index
+curl -LO https://github.com/SEBK4C/qlever-cosmopolitan/releases/latest/download/qlever-server
+chmod +x qlever-index qlever-server
+./qlever-index -i myindex -F ttl -f mydata.ttl     # build an index from RDF
+./qlever-server -i myindex -p 7001 -m 4GB          # serve SPARQL on :7001
+```
+
+The server listens on all interfaces, so any machine on your network can
+query `http://<host>:7001` immediately — point a SPARQL client, `curl`,
+or the [QLever UI](https://github.com/qlever-dev/qlever-ui) at it.
+Platform specifics (Windows rename to `.exe`, macOS quarantine, …),
+checksums and more are in **[`cosmo/USAGE.md`](cosmo/USAGE.md)**.
+
+## Relationship to upstream
+
+- Upstream [ad-freiburg/qlever](https://github.com/ad-freiburg/qlever)
+  is where QLever itself is developed — all credit for the engine goes
+  there. This fork adds the Cosmopolitan toolchain, portability fixes and
+  the APE release pipeline (see [`cosmo/`](cosmo/) for the engineering
+  log), and regularly merges upstream.
+- Releases are versioned **`v<upstream-version>-ape.<port-revision>`**
+  (e.g. `v0.5.47-ape.1`), so you always know which QLever you are
+  running.
+- The original QLever README continues below.
+
+---
+
 # QLever
 
 [![Docker build](https://github.com/ad-freiburg/QLever/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/ad-freiburg/QLever/actions/workflows/docker-publish.yml)

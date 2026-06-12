@@ -93,7 +93,8 @@ The port follows the original phase plan. Upstream is pinned at commit
 | 1 — toolchain bring-up | CMake toolchain file, deps sysroot | **Done** — `toolchains/cosmocc.cmake`; zlib/zstd/OpenSSL/ICU/Boost all build under cosmocc |
 | 2 — de-platform | Replace Linux-only paths, errno/socket compat | **Done** — Boost errno/Asio sentinel+translate patches, ICU `/zip` data embedding, char_traits backport; no Linux-only syscalls remained |
 | 3 — conformance & parity | Test suite + index/query parity vs native build | **e2e green** ✅ (2026-06-12) — all 220 expected-results checks pass against the cosmo build; crossdiff vs native + unit tests still open |
-| 4 — promote | Ship the APE binary as the primary artifact | **Started** — first release published; per-OS CI still open |
+| 4 — promote | Ship the APE binary as the primary artifact | **Started** — first release published (`v0.5.47-ape.1`); per-OS CI still open |
+| 5 — demo site | Local-network demo à la [qlever.dev](https://qlever.dev): several datasets + the QLever UI, showing off engine speed | Planned — see below |
 
 ### Status (2026-06-12, rebuilt from scratch on a fresh server)
 
@@ -120,13 +121,52 @@ The full pipeline through step 3 is green, end to end, on a clean machine:
 
 ### Next steps, in order
 
-1. Native reference build for cross-diff: configure `build-ref/` with the
-   host compiler (needs host toolchain + ICU/Boost, e.g.
-   `apt install build-essential libicu-dev libboost-all-dev libssl-dev
-   libzstd-dev zlib1g-dev`), then
+1. Native reference build for cross-diff: deps via Conan (host apt Boost
+   1.74 is older than the required 1.81; Conan pins the same boost
+   1.83/icu 76.1 as the cosmo sysroot, keeping the crossdiff
+   apples-to-apples), then
    `bash cosmo/parity-check.sh -r build-ref refe2e crossdiff`.
 2. Unit tests: `TARGETS=all sh cosmo/build.sh`, then
    `bash cosmo/parity-check.sh unit`.
 3. Run the e2e gate on at least one non-Linux host (macOS/Windows) with
    the released binaries.
 4. Revisit jemalloc, then finish Phase 4 (per-OS CI).
+
+### Phase 5 — local-network demo site (planned)
+
+Goal: a LAN-reachable demo in the spirit of <https://qlever.dev> —
+multiple datasets behind one QLever UI, demonstrating query speed against
+the APE binaries.
+
+Building blocks (both from the upstream ecosystem):
+
+- [`qlever-control`](https://github.com/qlever-dev/qlever-control)
+  (`pip install qlever`): per-dataset `Qleverfile`s that automate
+  download → index → serve. Plan: point its `server_binary`/
+  `index_binary` settings at the APE binaries instead of Docker images.
+- [`qlever-ui`](https://github.com/qlever-dev/qlever-ui): the web UI
+  behind qlever.dev (Django app; ships a Docker image, can also run from
+  source). One UI instance can front several SPARQL backends with
+  per-dataset autocompletion.
+
+Dataset ladder (size-appropriate for this host — ~10 GB free RAM):
+
+1. **scientists** (already indexed by the e2e gate) — instant.
+2. **olympics** (~2 M triples, minutes to index) — the standard QLever
+   quickstart dataset.
+3. **DBLP** (~1 G triples) — a real-world "wow" dataset that still
+   indexes on modest hardware; disk is plentiful here (2.8 TB).
+4. Wikidata-class datasets are out of scope on this machine (the
+   IndexBuilder wants ~100 GB+ RAM for sensible build times).
+
+Steps:
+
+1. `qlever setup-config olympics` etc., with binaries pointed at
+   `build-cosmo/` (or the released APEs) — verify indexing + serving.
+2. Stand up qlever-ui (Docker if available, else Django dev server),
+   configure backends for the datasets above, bind to `0.0.0.0` for LAN
+   access.
+3. A one-page launcher script (`cosmo/demo.sh`) that brings up all
+   servers + the UI and prints the LAN URL.
+4. Optional polish: a small landing page listing the datasets with
+   example queries and timing readouts.
