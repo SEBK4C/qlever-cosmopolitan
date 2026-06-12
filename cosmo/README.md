@@ -94,7 +94,7 @@ The port follows the original phase plan. Upstream is pinned at commit
 | 2 — de-platform | Replace Linux-only paths, errno/socket compat | **Done** — Boost errno/Asio sentinel+translate patches, ICU `/zip` data embedding, char_traits backport; no Linux-only syscalls remained |
 | 3 — conformance & parity | Test suite + index/query parity vs native build | **e2e green** ✅ (2026-06-12) — all 220 expected-results checks pass against the cosmo build; crossdiff vs native + unit tests still open |
 | 4 — promote | Ship the APE binary as the primary artifact | **Started** — first release published (`v0.5.47-ape.1`); per-OS CI still open |
-| 5 — demo site | Local-network demo à la [qlever.dev](https://qlever.dev): several datasets + the QLever UI, showing off engine speed | Planned — see below |
+| 5 — demo site | Local-network demo à la [qlever.dev](https://qlever.dev): several datasets + the QLever UI, showing off engine speed | **Working** — `cosmo/demo.sh` (olympics + scientists + UI); DBLP and multi-dataset UI wiring still open |
 
 ### Status (2026-06-12, rebuilt from scratch on a fresh server)
 
@@ -159,14 +159,72 @@ Dataset ladder (size-appropriate for this host — ~10 GB free RAM):
 4. Wikidata-class datasets are out of scope on this machine (the
    IndexBuilder wants ~100 GB+ RAM for sensible build times).
 
-Steps:
+### Running the demo
 
-1. `qlever setup-config olympics` etc., with binaries pointed at
-   `build-cosmo/` (or the released APEs) — verify indexing + serving.
-2. Stand up qlever-ui (Docker if available, else Django dev server),
-   configure backends for the datasets above, bind to `0.0.0.0` for LAN
-   access.
-3. A one-page launcher script (`cosmo/demo.sh`) that brings up all
-   servers + the UI and prints the LAN URL.
-4. Optional polish: a small landing page listing the datasets with
-   example queries and timing readouts.
+One-time setup (already done on the dev box):
+
+```sh
+# qlever-control: 0.5.46+ requires python >= 3.12, so pin 0.5.45 on 3.11
+python3 -m venv --without-pip ~/opt/qlever-venv \
+  && curl -sL https://bootstrap.pypa.io/get-pip.py | ~/opt/qlever-venv/bin/python - \
+  && ~/opt/qlever-venv/bin/pip install 'qlever==0.5.45' \
+  && ln -s ~/opt/qlever-venv/bin/qlever ~/.local/bin/qlever
+# the APE binaries on PATH, where SYSTEM=native Qleverfiles find them
+ln -s "$PWD"/build-cosmo/qlever-{index,server} ~/.local/bin/
+# olympics dataset (downloads 13 MB, indexes in ~10 s)
+mkdir -p ~/qlever-demo/olympics && cd ~/qlever-demo/olympics \
+  && qlever setup-config olympics \
+  && sed -i 's/^SYSTEM = docker/SYSTEM = native/' Qleverfile \
+  && qlever get-data && qlever index
+```
+
+Bring everything up (idempotent — safe to re-run):
+
+```sh
+bash cosmo/demo.sh
+```
+
+This starts the scientists e2e index (APE server, :7020), the olympics
+dataset (:7019) and the dockerized QLever UI (:8176), then prints the
+URLs. The UI needs docker group membership (`sg docker` is used, so no
+re-login required).
+
+### Verifying it works
+
+```sh
+# 1. UI serves (expect HTTP 200)
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8176/olympics
+
+# 2. SPARQL endpoint answers — top Olympic medalists, expect
+#    "Michael Fred Phelps, II | 28" first, in ~30 ms
+curl -s http://localhost:7019 -H 'Accept: application/sparql-results+json' \
+  --data-urlencode 'query=PREFIX o: <http://wallscope.co.uk/ontology/olympics/>
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    SELECT ?name (COUNT(*) AS ?medals) WHERE {
+      ?i o:athlete ?a . ?a rdfs:label ?name . ?i o:medal ?m
+    } GROUP BY ?name ORDER BY DESC(?medals) LIMIT 5'
+
+# 3. From another machine on the network/tailnet: open
+#    http://<host-ip>:8176/olympics in a browser, run any query from
+#    the examples dropdown, check the response time readout.
+```
+
+Note: the UI registers its backend as `http://<hostname>:7019`; clients
+that can't resolve the hostname (no MagicDNS/mDNS) need the Qleverfile's
+`[ui]` endpoint switched to the IP, then `qlever ui` re-run.
+
+### Taking it down
+
+```sh
+sg docker -c 'docker rm -f qlever.ui.olympics'   # the UI
+(cd ~/qlever-demo/olympics && qlever stop)       # olympics backend
+pkill -f 'qlever-server.*7020'                   # scientists backend
+```
+
+### Still open
+
+- Register the scientists endpoint (and later DBLP) as additional
+  backends in the one UI instance, qlever.dev-style.
+- DBLP dataset (~1 G triples) as the "wow" demo.
+- Optional: a small landing page listing the datasets with example
+  queries and timing readouts.
