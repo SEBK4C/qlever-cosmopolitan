@@ -91,43 +91,39 @@ The port follows the original phase plan. Upstream is pinned at commit
 | 0 — pin & audit | Enumerate deps, classify cosmo-compatibility | **Done** — see `AUDIT.md`; zero hard blockers found |
 | 1 — toolchain bring-up | CMake toolchain file, deps sysroot | **Done** — `toolchains/cosmocc.cmake`; zlib/zstd/OpenSSL/ICU/Boost all build under cosmocc |
 | 2 — de-platform | Replace Linux-only paths, errno/socket compat | **Done** — Boost errno/Asio sentinel+translate patches, ICU `/zip` data embedding, char_traits backport; no Linux-only syscalls remained |
-| 3 — conformance & parity | Test suite + index/query parity vs native build | **In progress** — blocked on the first successful link (below) |
+| 3 — conformance & parity | Test suite + index/query parity vs native build | **In progress** — binaries link & smoke-test ✅ (2026-06-12); parity gate is next |
 | 4 — promote | Ship the APE binary as the primary artifact | Not started |
 
-### Where we left off (2026-06-12, dev moved off a failing-SSD server)
+### Status (2026-06-12, rebuilt from scratch on a fresh server)
 
-The main QLever compile is **fully green** under cosmocc — all third-party
-deps (abseil, ANTLR4, re2, s2, spatialjoin, fsst) and QLever's own sources
-compile. The remaining wall is the **final link** of `qlever-index` /
-`qlever-server` / `PrintIndexVersionMain`, which was iterating when work
-stopped:
+The full pipeline through step 3 is green, end to end, on a clean machine:
 
-- Last symptom: undefined references to
-  `absl::synchronization_internal::CreateThreadIdentity` /
-  `LowLevelAlloc` — abseil compiled those TUs empty because
-  `ABSL_HAVE_MMAP` didn't include `__COSMOPOLITAN__` in its platform list.
-- Fix is in place and durable: `cosmo/patch_absl_cosmo.sh`, wired as the
-  abseil `PATCH_COMMAND` in the root `CMakeLists.txt`, so a fresh
-  FetchContent checkout patches itself automatically.
-- The last build with that fix was relaunched but its result was never
-  observed (the server died). **The link has not yet been seen to
-  succeed** — that is the first thing to verify on the new machine.
+- Sysroot rebuilt from nothing (`build-deps.sh`) — three latent bugs in the
+  fresh-server path were found and fixed along the way (ICU makefile
+  self-clobber, Boost b2 bootstrap without a host compiler, plus a
+  toolchain-extraction symlink trap). Details in `AUDIT.md` under
+  "Fresh-server bring-up quirks".
+- **The final link succeeded** — `qlever-index` (113 MB), `qlever-server`
+  (117 MB) and `PrintIndexVersionMain` all link with the abseil
+  `ABSL_HAVE_MMAP` patch; no further undefined-symbol rounds were needed.
+- Smoke tests pass: `PrintIndexVersionMain` prints its version JSON,
+  `qlever-server --help` works.
+- `package.sh` ran: `icudt76l.dat` is embedded in both binaries' zip
+  sections.
+- See `REPORT-2026-06-12.md` for the full bring-up narrative.
 
 ### Next steps, in order
 
-1. `sh cosmo/build.sh` — expect the link to go through with the abseil
-   fix; if new undefined symbols appear they will likely be the same
-   pattern (a dep self-disabling because it doesn't recognize
-   `__COSMOPOLITAN__`) — same cure, see `AUDIT.md`.
-2. Smoke-test: `build-cosmo/PrintIndexVersionMain`, then
-   `sh cosmo/package.sh` to embed ICU data.
-3. Parity gate: `bash cosmo/parity-check.sh e2e` (scientists collection +
+1. Parity gate: `bash cosmo/parity-check.sh e2e` (scientists collection +
    70 checked queries; the data self-extracts from
-   `e2e/scientist-collection.zip`).
-4. Native reference build for cross-diff: configure `build-ref/` with the
-   host compiler (needs host ICU/Boost), then
+   `e2e/scientist-collection.zip`). Note: the host needs `unzip` (or
+   pre-extract the collection with python3).
+2. Native reference build for cross-diff: configure `build-ref/` with the
+   host compiler (needs host toolchain + ICU/Boost, e.g.
+   `apt install build-essential libicu-dev libboost-all-dev libssl-dev
+   libzstd-dev zlib1g-dev`), then
    `bash cosmo/parity-check.sh -r build-ref refe2e crossdiff`.
-5. Unit tests: `TARGETS=all sh cosmo/build.sh`, then
+3. Unit tests: `TARGETS=all sh cosmo/build.sh`, then
    `bash cosmo/parity-check.sh unit`.
-6. Once parity is green: revisit jemalloc, then Phase 4 (promote the APE
+4. Once parity is green: revisit jemalloc, then Phase 4 (promote the APE
    binary, set up per-OS CI).

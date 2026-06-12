@@ -49,3 +49,7 @@ sourcelist
 
 /cmake-build*
 /localIndices
+
+# Cosmopolitan port build trees
+/build-cosmo/
+/build-ref/

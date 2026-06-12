@@ -123,6 +123,54 @@ zip (`/zip/icu/`) and call `u_setDataDirectory("/zip/icu")` early in
 `IndexBuilderMain`/`ServerMain` (guarded by `__COSMOPOLITAN__`). Until that
 patch lands, set `ICU_DATA=$HOME/cosmos/share/icu/76.1` in the environment.
 
+## Fresh-server bring-up quirks (2026-06-12)
+
+Found while rebuilding the entire pipeline from scratch on a clean Debian 12
+host (no compiler, no make/cmake/unzip, no sudo). All fixes that belong in
+the repo are in `build-deps.sh`; the rest is host bootstrap knowledge.
+
+1. **python `zipfile` breaks cosmocc's symlinks.** Extracting `cosmocc.zip`
+   without `unzip(1)` via python's `zipfile` writes each of the 38 symlink
+   entries (`cosmoc++` → `cosmocc`, …) as a *regular file containing the
+   target name*. The failure is maximally misleading: `cosmoc++` "runs" (the
+   shell interprets the one-word file, finding `cosmocc` on PATH with **no
+   argv**) and dies with `precompiled headers only supported with
+   ARCH-unknown-cosmo-cc compilers` — empty args trip the wrapper's
+   only-header-inputs heuristic. Fix: recreate entries whose
+   `external_attr >> 16` is `S_ISLNK` with `os.symlink`.
+
+2. **ICU regenerates `common/Makefile` mid-build, clobbering our sed.**
+   `common/Makefile` lists `$(SVC_HOOK_INC)` (`common/svchook.mk`) as a
+   prerequisite *of itself*, and that file is generated during `make` with a
+   fresh mtime — so make re-runs `config.status`, which resurrects the two
+   quoted `-D` defines our sed just stripped, and cosmocc then rejects the
+   quoted args. It only ever worked before because reruns inherited a
+   leftover `svchook.mk` from a failed first attempt. `build-deps.sh` now
+   pre-creates `svchook.mk` (with the rule's exact no-localsvc output)
+   before the sed.
+
+3. **Boost b2 needs a host C++ compiler — or cosmocc + assimilate.** On a
+   host with no compiler, `bootstrap.sh` fails ("Failed to build B2 build
+   engine"). `build-deps.sh` now falls back to building the engine with
+   `cosmoc++` and converting the APE output to a native executable with
+   `assimilate -x` (build tools must be native ELF: anything that
+   `posix_spawn`s them — CMake, autoconf snippets — can't exec APE
+   directly).
+
+4. **Host bootstrap without sudo.** Same assimilate trick provides
+   `make`: copy `$COSMOCC/bin/make` (GNU Make 4.4.1) elsewhere and
+   `assimilate -x` it — needed because CMake can't spawn the APE `make`.
+   CMake itself: Kitware binary tarball (QLever needs ≥ 3.27; Debian 12
+   apt has 3.25).
+
+5. **Memory sizing for the QLever build.** cosmocc compiles every TU twice
+   (x86_64 then aarch64). The `sparqlExpressions` TUs (String-, Aggregate-,
+   Relational-, RegexExpression) each push cc1plus to multiple GB; with
+   ~10 GB free, `JOBS=5` and even `JOBS=2` got cc1plus SIGKILLed by the OOM
+   killer. The tail of the build needed `JOBS=1`. Symptom signature:
+   `cosmoc++: x86_64 succeeded but aarch64 failed to build object` +
+   `SIGKILL signal terminated program cc1plus`.
+
 ## Phase status
 
 - [x] Phase 0 — pin + audit (this document)
@@ -130,8 +178,11 @@ patch lands, set `ICU_DATA=$HOME/cosmos/share/icu/76.1` in the environment.
 - [x] Phase 1b — sysroot deps (zlib, zstd, OpenSSL, ICU, Boost — all built;
       Boost with the errno compat patches; ICU collation + Boost errno
       translation verified by standalone probes)
-- [ ] Phase 1c/2 — QLever configure ✅ + build ⏳ + de-platform fixes (`cosmo/build.sh`)
+- [x] Phase 1c/2 — QLever configure + build + de-platform fixes (`cosmo/build.sh`)
+- [x] **First successful link (2026-06-12)** — `qlever-index`,
+      `qlever-server`, `PrintIndexVersionMain` all link with the abseil
+      `ABSL_HAVE_MMAP` patch (`cosmo/patch_absl_cosmo.sh`); smoke tests pass
 - [x] ICU `/zip/` embedding patch (`src/util/CosmopolitanIcuInit.h`, wired into
-      the three mains; `cosmo/package.sh` embeds the `.dat`)
+      the three mains; `cosmo/package.sh` embeds the `.dat` — verified)
 - [ ] Phase 3 — parity harness (`cosmo/parity-check.sh`): e2e + unit tests, cosmo build vs reference build
 - [ ] Phase 4 — promote (CI integration; out of scope for the local bring-up)
