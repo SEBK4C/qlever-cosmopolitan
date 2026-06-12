@@ -6,7 +6,8 @@ runs on Linux, macOS, Windows, FreeBSD, OpenBSD and NetBSD, on both x86_64
 and aarch64.
 
 See `AUDIT.md` for the Phase 0 dependency/platform audit and the list of
-toolchain quirks discovered along the way.
+toolchain quirks discovered along the way. End-user instructions for the
+released binaries live in `USAGE.md`.
 
 ## Resuming on a fresh server
 
@@ -91,8 +92,8 @@ The port follows the original phase plan. Upstream is pinned at commit
 | 0 — pin & audit | Enumerate deps, classify cosmo-compatibility | **Done** — see `AUDIT.md`; zero hard blockers found |
 | 1 — toolchain bring-up | CMake toolchain file, deps sysroot | **Done** — `toolchains/cosmocc.cmake`; zlib/zstd/OpenSSL/ICU/Boost all build under cosmocc |
 | 2 — de-platform | Replace Linux-only paths, errno/socket compat | **Done** — Boost errno/Asio sentinel+translate patches, ICU `/zip` data embedding, char_traits backport; no Linux-only syscalls remained |
-| 3 — conformance & parity | Test suite + index/query parity vs native build | **In progress** — binaries link & smoke-test ✅ (2026-06-12); parity gate is next |
-| 4 — promote | Ship the APE binary as the primary artifact | Not started |
+| 3 — conformance & parity | Test suite + index/query parity vs native build | **e2e green** ✅ (2026-06-12) — all 220 expected-results checks pass against the cosmo build; crossdiff vs native + unit tests still open |
+| 4 — promote | Ship the APE binary as the primary artifact | **Started** — first release published; per-OS CI still open |
 
 ### Status (2026-06-12, rebuilt from scratch on a fresh server)
 
@@ -110,20 +111,22 @@ The full pipeline through step 3 is green, end to end, on a clean machine:
   `qlever-server --help` works.
 - `package.sh` ran: `icudt76l.dat` is embedded in both binaries' zip
   sections.
-- See `REPORT-2026-06-12.md` for the full bring-up narrative.
+- **The e2e parity gate passed** — but only after it caught two real
+  runtime bugs that the smoke tests missed: cosmo's 80 KiB default thread
+  stacks (segfault on recursive query execution) and ICU being unable to
+  mmap its deflated `/zip` data archive (`U_FILE_ACCESS_ERROR` without
+  `ICU_DATA`). Both fixed in source; see AUDIT quirks #6/#7 and
+  `REPORT-2026-06-12.md` for the full narrative.
 
 ### Next steps, in order
 
-1. Parity gate: `bash cosmo/parity-check.sh e2e` (scientists collection +
-   70 checked queries; the data self-extracts from
-   `e2e/scientist-collection.zip`). Note: the host needs `unzip` (or
-   pre-extract the collection with python3).
-2. Native reference build for cross-diff: configure `build-ref/` with the
+1. Native reference build for cross-diff: configure `build-ref/` with the
    host compiler (needs host toolchain + ICU/Boost, e.g.
    `apt install build-essential libicu-dev libboost-all-dev libssl-dev
    libzstd-dev zlib1g-dev`), then
    `bash cosmo/parity-check.sh -r build-ref refe2e crossdiff`.
-3. Unit tests: `TARGETS=all sh cosmo/build.sh`, then
+2. Unit tests: `TARGETS=all sh cosmo/build.sh`, then
    `bash cosmo/parity-check.sh unit`.
-4. Once parity is green: revisit jemalloc, then Phase 4 (promote the APE
-   binary, set up per-OS CI).
+3. Run the e2e gate on at least one non-Linux host (macOS/Windows) with
+   the released binaries.
+4. Revisit jemalloc, then finish Phase 4 (per-OS CI).

@@ -53,3 +53,4 @@ sourcelist
 # Cosmopolitan port build trees
 /build-cosmo/
 /build-ref/
+/.venv-e2e/

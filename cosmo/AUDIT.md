@@ -171,6 +171,31 @@ the repo are in `build-deps.sh`; the rest is host bootstrap knowledge.
    `cosmoc++: x86_64 succeeded but aarch64 failed to build object` +
    `SIGKILL signal terminated program cc1plus`.
 
+## Runtime quirks found by the parity gate (2026-06-12)
+
+6. **Cosmo's default pthread stack is 80 KiB** (glibc: 8 MiB) and
+   `-Wl,-z,stack-size` does not change it. QLever executes the query tree
+   recursively and serializes `RuntimeInformation` recursively; a 3-word
+   `ql:contains-word` e2e query segfaulted one page below the worker
+   thread's stack mapping (diagnosed from a core dump:
+   `si_addr ≈ rsp`, 4 KiB residual stack mapping, frame chain full of
+   `to_json`/`runComputation` recursion). Fix:
+   `--wrap=pthread_create` on the executable targets +
+   `src/util/CosmopolitanThreadStack.h` flooring every thread stack at
+   8 MiB. A plain strong-symbol override is impossible — cosmo's
+   `pthread_create.o` also defines `_pthread_decimate`/`_pthread_free`,
+   so the libc member always gets pulled and would collide.
+
+7. **ICU can't load a deflate-compressed `/zip` asset.** ICU opens its
+   `.dat` archive with `mmap()`; Cosmopolitan's `/zip` VFS only supports
+   that for stored (uncompressed) entries, and `package.sh` deflates
+   (31.8 MB → 12.4 MB per binary). Symptom: `U_FILE_ACCESS_ERROR` at
+   startup — but only when `ICU_DATA` is unset, which the parity script
+   always sets, so it masked the bug. Fix in `CosmopolitanIcuInit.h`:
+   read the embedded archive via stdio (which decompresses transparently)
+   and hand the buffer to `udata_setCommonData()` instead of pointing
+   `u_setDataDirectory` at `/zip/icu`.
+
 ## Phase status
 
 - [x] Phase 0 — pin + audit (this document)
