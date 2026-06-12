@@ -161,30 +161,24 @@ std::string insertThousandSeparator(const std::string_view str,
 // and compare the hashes instead of the actual strings.
 inline QL_CONSTEXPR bool constantTimeEquals(std::string_view view1,
                                             std::string_view view2) {
-  using byte_view = std::basic_string_view<volatile std::byte>;
-  auto impl = [](byte_view str1, byte_view str2) {
-    if (str1.length() != str2.length()) {
-      return false;
-    }
-    volatile std::byte mismatchFound{0};
-    for (size_t i = 0; i < str1.length(); ++i) {
-      // In C++20 compound assignment of volatile variables causes a warning,
-      // so we can't use 'mismatchFound |=' until compiling with C++23 where it
-      // is fine again. mismatchFound can be interpreted as bool and "is false"
-      // until the first mismatch in the strings is found.
-      mismatchFound = mismatchFound | (str1[i] ^ str2[i]);
-    }
-    return !static_cast<bool>(mismatchFound);
-  };
-  auto toVolatile = [](std::string_view view) constexpr -> byte_view {
-    // Casting is safe because both types have the same size
-    static_assert(sizeof(std::string_view::value_type) ==
-                  sizeof(byte_view::value_type));
-    return {
-        static_cast<const std::byte*>(static_cast<const void*>(view.data())),
-        view.size()};
-  };
-  return impl(toVolatile(view1), toVolatile(view2));
+  // Note: implemented on raw `volatile` pointers instead of a
+  // `std::basic_string_view<volatile std::byte>` because libc++ >= 18 has no
+  // generic `std::char_traits` for non-character types anymore.
+  if (view1.length() != view2.length()) {
+    return false;
+  }
+  const volatile char* str1 = view1.data();
+  const volatile char* str2 = view2.data();
+  volatile unsigned char mismatchFound = 0;
+  for (size_t i = 0; i < view1.length(); ++i) {
+    // In C++20 compound assignment of volatile variables causes a warning,
+    // so we can't use 'mismatchFound |=' until compiling with C++23 where it
+    // is fine again. mismatchFound can be interpreted as bool and "is false"
+    // until the first mismatch in the strings is found.
+    mismatchFound =
+        mismatchFound | static_cast<unsigned char>(str1[i] ^ str2[i]);
+  }
+  return !static_cast<bool>(mismatchFound);
 }
 
 // _________________________________________________________________________

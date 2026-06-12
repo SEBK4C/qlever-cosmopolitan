@@ -212,7 +212,9 @@ find_package(Threads REQUIRED)
 #################################
 # ICU (for proper collation
 ################################
-find_package(ICU 60 REQUIRED COMPONENTS uc i18n)
+# The `data` component and the i18n-before-uc order matter for static ICU
+# (e.g. the Cosmopolitan build); both are harmless for shared ICU.
+find_package(ICU 60 REQUIRED COMPONENTS uc i18n data)
 
 ###################################
 # JEMALLOC
@@ -280,8 +282,8 @@ find_package(OpenSSL REQUIRED)
 # against the common libraries.
 function(qlever_target_link_libraries target)
     target_link_libraries(${target} ${ARGN} absl::compare absl::flat_hash_map
-            absl::flat_hash_set absl::strings absl::str_format ICU::uc
-            ICU::i18n OpenSSL::SSL OpenSSL::Crypto GTest::gtest GTest::gmock fsst nlohmann_json::nlohmann_json Boost::container)
+            absl::flat_hash_set absl::strings absl::str_format ICU::i18n
+            ICU::uc ICU::data OpenSSL::SSL OpenSSL::Crypto GTest::gtest GTest::gmock fsst nlohmann_json::nlohmann_json Boost::container)
 
     # memorySize is a utility library for defining memory sizes.
     if (NOT ${target} STREQUAL "memorySize")
@@ -357,6 +359,9 @@ FetchContent_Declare(
         abseil
         GIT_REPOSITORY https://github.com/abseil/abseil-cpp.git
         GIT_TAG 93ac3a4f9ee7792af399cebd873ee99ce15aed08  # 2024-05-16
+        # Teach abseil's platform detection about Cosmopolitan (no-op
+        # elsewhere; see the script for details).
+        PATCH_COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/cosmo/patch_absl_cosmo.sh
         EXCLUDE_FROM_ALL
 )
 

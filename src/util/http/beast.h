@@ -30,6 +30,21 @@
 #define BOOST_ASIO_HAS_STD_INVOKE_RESULT
 #endif
 
+// Asio's autodetection of std::future is keyed on libstdc++'s
+// `_GLIBCXX_HAS_GTHREADS` when compiling with GCC, which misfires when GCC is
+// combined with libc++ (e.g. the Cosmopolitan toolchain). std::future exists
+// on every platform QLever supports.
+#ifndef BOOST_ASIO_HAS_STD_FUTURE_CLASS
+#define BOOST_ASIO_HAS_STD_FUTURE_CLASS
+#endif
+
+// The termios baud-rate constants (B50, ...) are runtime symbols under
+// Cosmopolitan and Asio's serial-port code uses them in constant
+// expressions; QLever doesn't use serial ports.
+#if defined(__COSMOPOLITAN__) && !defined(BOOST_ASIO_DISABLE_SERIAL_PORT)
+#define BOOST_ASIO_DISABLE_SERIAL_PORT
+#endif
+
 #include <boost/beast/version.hpp>
 
 // Don't set header for boost beast 1.81 and forward, because it is noop there.

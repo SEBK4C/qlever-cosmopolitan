@@ -15,6 +15,7 @@
 #include "engine/Server.h"
 #include "global/Constants.h"
 #include "global/RuntimeParameters.h"
+#include "util/CosmopolitanIcuInit.h"
 #include "util/MemorySize/MemorySize.h"
 #include "util/ParseableDuration.h"
 #include "util/ProgramOptionsHelpers.h"
@@ -27,6 +28,9 @@ namespace po = boost::program_options;
 
 // Main function.
 int main(int argc, char** argv) {
+  // On Cosmopolitan builds, use the ICU data archive embedded in this
+  // executable (must happen before any ICU call).
+  ad_utility::initIcuDataFromExecutable();
   // TODO<joka921> This is a hack, because the unit tests currently don't work
   // with the strip-columns feature.
   setRuntimeParameter<&RuntimeParameters::stripColumns_>(true);

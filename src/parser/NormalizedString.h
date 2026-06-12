@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 
+#include "backports/char_traits.h"
 #include "backports/three_way_comparison.h"
 
 struct NormalizedChar {
@@ -15,6 +16,12 @@ struct NormalizedChar {
 
   QL_DEFINE_DEFAULTED_THREEWAY_OPERATOR_LOCAL(NormalizedChar, c_)
 };
+
+// Required because libc++ >= 18 has no generic `std::char_traits` base
+// template anymore (see backports/char_traits.h).
+template <>
+struct std::char_traits<NormalizedChar>
+    : ql::GenericCharTraits<NormalizedChar> {};
 
 // A bespoke string representation that ensures the content
 // is correctly encoded and does not contain invalid characters

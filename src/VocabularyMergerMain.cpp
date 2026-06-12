@@ -7,9 +7,13 @@
 
 #include "index/Vocabulary.h"
 #include "index/VocabularyMerger.h"
+#include "util/CosmopolitanIcuInit.h"
 
 // ____________________________________________________________________________________________________
 int main(int argc, char** argv) {
+  // On Cosmopolitan builds, use the ICU data archive embedded in this
+  // executable (must happen before any ICU call).
+  ad_utility::initIcuDataFromExecutable();
   if (argc != 3) {
     std::cerr
         << "Usage: " << argv[0]

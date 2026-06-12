@@ -20,11 +20,18 @@
 
 #include "backports/StartsWithAndEndsWith.h"
 #include "backports/algorithm.h"
+#include "backports/char_traits.h"
 #include "backports/memory_resource.h"
 #include "backports/three_way_comparison.h"
 #include "global/Constants.h"
 #include "util/Exception.h"
 #include "util/StringUtils.h"
+
+// Required for `std::basic_string<uint8_t>` because libc++ >= 18 has no
+// generic `std::char_traits` base template anymore (see
+// backports/char_traits.h).
+template <>
+struct std::char_traits<uint8_t> : ql::GenericCharTraits<uint8_t> {};
 
 /**
  * @brief This class wraps all calls to the ICU library that are required by
