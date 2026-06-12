@@ -56,6 +56,9 @@ set(Boost_USE_STATIC_RUNTIME ON)
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-static -L${COSMOS_PREFIX}/lib")
+# Marker for cosmo-specific conditionals in QLever's own CMakeLists (e.g.
+# the pthread_create stack-size wrap on the executable targets).
+set(QLEVER_COSMOPOLITAN ON)
 
 # Make the sysroot headers (zlib.h, the cosmo_compat errno shims included by
 # the patched Boost headers, …) visible to every TU, including third-party

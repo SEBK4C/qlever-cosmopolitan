@@ -20,6 +20,7 @@
 #include "index/ConstantsIndexBuilding.h"
 #include "libqlever/Qlever.h"
 #include "util/CosmopolitanIcuInit.h"
+#include "util/CosmopolitanThreadStack.h"
 #include "util/ProgramOptionsHelpers.h"
 #include "util/ReadableNumberFacet.h"
 #include "util/json.h"

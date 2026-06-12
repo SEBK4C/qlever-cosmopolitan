@@ -563,6 +563,19 @@ qlever_target_link_libraries(VocabularyMergerMain index parser ${CMAKE_THREAD_LI
 add_executable(PrintIndexVersionMain src/PrintIndexVersionMain.cpp)
 qlever_target_link_libraries(PrintIndexVersionMain util)
 
+# Cosmopolitan builds: floor every thread's stack size at 8 MiB via the
+# pthread_create wrapper in src/util/CosmopolitanThreadStack.h (cosmo's
+# 80 KiB default overflows on QLever's recursive query execution). The
+# wrapper is defined in each executable's main TU; the flag and the header
+# must stay in sync.
+if (QLEVER_COSMOPOLITAN)
+    foreach (cosmo_exe qlever-index qlever-server VocabularyMergerMain)
+        if (TARGET ${cosmo_exe})
+            target_link_options(${cosmo_exe} PRIVATE "LINKER:--wrap=pthread_create")
+        endif ()
+    endforeach ()
+endif ()
+
 if (NOT _EMSCRIPTEN_NO_INDEXBUILDER_AND_SERVER)
     install(TARGETS
         qlever-index

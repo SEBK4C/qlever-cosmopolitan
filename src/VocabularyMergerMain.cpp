@@ -8,6 +8,7 @@
 #include "index/Vocabulary.h"
 #include "index/VocabularyMerger.h"
 #include "util/CosmopolitanIcuInit.h"
+#include "util/CosmopolitanThreadStack.h"
 
 // ____________________________________________________________________________________________________
 int main(int argc, char** argv) {
